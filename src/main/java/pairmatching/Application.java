@@ -21,8 +21,28 @@ public class Application {
         PairMatchingController pairMatchingController = new PairMatchingController(inputView, outputView,
                 backendCrew,frontendCrew);
 
+        while(true){
+            try{
+                String input = inputView.displayStartMessage();
+                if(!input.equals("Q")){
+                    run(input, inputView, pairMatchingController);
+                }
+                if(input.equals("Q")){
+                    throw new IllegalArgumentException("exit");
+                }
+            }catch (IllegalArgumentException e){
+                if(e.getMessage().equals("exit")){
+                    return;
+                }
+                System.out.println(e.getMessage());
+            }
+        }
 
-        String input = inputView.displayStartMessage();
+
+    }
+
+    private static void run(String input, InputView inputView, PairMatchingController pairMatchingController) {
+        System.out.println("입력된 값: "+ input);
 
         //페어 매칭
         if(input.equals("1")){
@@ -36,21 +56,9 @@ public class Application {
             }catch (IllegalArgumentException e){
                 System.out.println(e.getMessage());
             }
-            /*
-            //String mission = Missions.isMission(level, criteria[2]);
-            if(!Missions.hasMission(level, criteria[2])){
-                throw new IllegalArgumentException("[ERROR] 없는 미션 입니다.");
-            }
 
-             */
 
             pairMatchingController.matching(course);
-
-
         }
-        if(input.equals("Q")){
-            return;
-        }
-
     }
 }

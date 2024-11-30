@@ -8,47 +8,48 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import pairmatching.enums.Missions;
+import pairmatching.view.error.ErrorException;
 
 public class MatchingRecord {
 
     private Map<Missions, Pairs> matchingRecord;
 
-    public MatchingRecord(){
+    public MatchingRecord() {
         this.matchingRecord = new HashMap<>();
     }
 
-    public void add(Missions mission, Pairs matchedPairs){
+    public void add(Missions mission, Pairs matchedPairs) {
         matchingRecord.put(mission, matchedPairs);
     }
 
-    public void replace(Missions mission, Pairs pairs){
+    public void replace(Missions mission, Pairs pairs) {
         matchingRecord.put(mission, pairs);
     }
 
-    public void clear(){
+    public void clear() {
         matchingRecord = null;
     }
 
-    public Pairs getRecordThroughMission(Missions mission){
+    public Pairs getRecordThroughMission(Missions mission) {
         return matchingRecord.entrySet().stream()
                 .filter(entry -> entry.getKey() == mission)
                 .map(Entry::getValue)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("[ERROR] 해당 미션에 대한 기록이 없습니다."));
+                .orElseThrow(() -> new ErrorException("해당 미션에 대한 기록이 없습니다."));
     }
 
-    public boolean containPreviousMatching(Missions mission){
+    public boolean containPreviousMatching(Missions mission) {
         return matchingRecord.entrySet().stream()
                 .anyMatch(entry -> entry.getKey() == mission);
     }
 
-    public boolean containTheSamePairInTheSameLevel(Missions mission, Pairs matchedPairs){
+    public boolean containTheSamePairInTheSameLevel(Missions mission, Pairs matchedPairs) {
         return matchingRecord.entrySet().stream()
                 .filter(entry -> entry.getKey().getLevel().equals(mission.getLevel()))
                 .anyMatch(entry -> hasSameSet(entry.getValue(), matchedPairs));
     }
 
-    public boolean hasSameSet(Pairs thisPairs, Pairs otherPairs){
+    public boolean hasSameSet(Pairs thisPairs, Pairs otherPairs) {
         List<Set<String>> thisSets = convertPairsToSetList(thisPairs);
         List<Set<String>> otherSets = convertPairsToSetList(otherPairs);
 

@@ -2,6 +2,7 @@ package pairmatching.enums;
 
 import java.util.Arrays;
 import java.util.Objects;
+import pairmatching.view.error.ErrorException;
 
 public enum Missions {
 
@@ -12,9 +13,9 @@ public enum Missions {
     PAYMENT(Level.LEVEL2, "결제"),
     SUBWAY_MAP(Level.LEVEL2, "지하철노선도"),
     IMPROVED_PERFORMANCE(Level.LEVEL2, "성능개선"),
-    DISTRIBUTION(Level.LEVEL4, "배포"),
-    ;
+    DISTRIBUTION(Level.LEVEL4, "배포");
 
+    private static final String INVALID_MISSION = "없는 미션 입니다.";
     final Level level;
     final String mission;
 
@@ -26,18 +27,13 @@ public enum Missions {
 
     public static Missions getValidMission(Level enteredLevel, String enteredMission) {
         return Arrays.stream(Missions.values())
-                .filter(mission -> mission.level ==  enteredLevel)
+                .filter(mission -> mission.level == enteredLevel)
                 .filter(mission -> Objects.equals(mission.mission, enteredMission))
                 .findAny()
-                .orElseThrow(()-> new IllegalArgumentException("[ERROR] 없는 미션 입니다."));
+                .orElseThrow(() -> new ErrorException(INVALID_MISSION));
     }
 
-    public Level getLevel(){
+    public Level getLevel() {
         return level;
     }
-
-    public String getMission(){
-        return mission;
-    }
-
 }

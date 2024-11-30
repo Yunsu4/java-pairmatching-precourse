@@ -4,16 +4,22 @@ import java.util.function.Function;
 import org.mockito.internal.util.Supplier;
 import pairmatching.enums.Course;
 import pairmatching.enums.Crew;
+import pairmatching.enums.Functions;
 import pairmatching.enums.Level;
 import pairmatching.enums.Missions;
+import pairmatching.enums.ShortAnswer;
 import pairmatching.model.MatchingRecord;
 import pairmatching.model.Pairs;
 import pairmatching.view.InputView;
 import pairmatching.view.OutputView;
+import pairmatching.view.error.ErrorException;
 
 public class PairMatchingController {
 
-    public static final String COMMA = "\\s*,\\s*";
+    private static final String COMMA = "\\s*,\\s*";
+    private static final String EXIT = "exit";
+    public static final int MAX_TRY_COUNT = 3;
+
     private InputView inputView;
     private OutputView outputView;
     private Crew backend;
@@ -22,7 +28,7 @@ public class PairMatchingController {
     private MatchingRecord frontendRecord;
 
 
-    public PairMatchingController(InputView inputView, OutputView outputView){
+    public PairMatchingController(InputView inputView, OutputView outputView) {
         this.inputView = inputView;
         this.outputView = outputView;
         this.backend = new Crew(Course.BACKEND);
@@ -31,13 +37,13 @@ public class PairMatchingController {
         this.frontendRecord = new MatchingRecord();
     }
 
-    public void matchingSystemRun(){
-        while(true){
-            try{
-                String input = getValidInput(inputView::displayStartMessage, this::inputValidator);
+    public void matchingSystemRun() {
+        while (true) {
+            try {
+                String input = getValidInput(inputView::displayStartMessage, Functions::getValidFunction);
                 executeWithInput(input);
-            }catch (IllegalArgumentException e){
-                if(e.getMessage().equals("exit")){
+            } catch (IllegalArgumentException e) {
+                if (e.getMessage().equals(EXIT)) {
                     return;
                 }
                 System.out.println(e.getMessage());
@@ -45,41 +51,34 @@ public class PairMatchingController {
         }
     }
 
-    private String inputValidator(String input){
-        if(input.equals("1") || input.equals("2") || input.equals("3") || input.equals("Q")){
-            return input;
-        }
-        throw new IllegalArgumentException("[ERROR] 올바른 입력이 아닙니다.");
-    }
-
-    private void executeWithInput(String input) throws IllegalArgumentException{
-        if(!input.equals("Q")){
+    private void executeWithInput(String input) throws IllegalArgumentException {
+        if (Functions.isEquals(input, Functions.QUIT)) {
             performFunctions(input, inputView);
         }
-        if(input.equals("Q")){
-            throw new IllegalArgumentException("exit");
+        if (!Functions.isEquals(input, Functions.QUIT)) {
+            throw new IllegalArgumentException(EXIT);
         }
     }
 
-    private void performFunctions(String input, InputView inputView) throws IllegalArgumentException{
+    private void performFunctions(String input, InputView inputView) throws ErrorException {
         executePairMatching(input, inputView);
         executePairInquiry(input, inputView);
         executePairInitialization(input);
     }
 
-    private void executePairMatching(String input, InputView inputView) {
-        if(input.equals("1")){
+    private void executePairMatching(String input, InputView inputView) throws ErrorException {
+        if (Functions.isEquals(input, Functions.MATCH_PAIRS)) {
             String[] matchingCriteria = parseInput(inputView);
             String course = Course.isCourse(matchingCriteria[0]);
             Level level = Level.getLevel(matchingCriteria[1]);
             Missions mission = Missions.getValidMission(level, matchingCriteria[2]);
-            
+
             matchDistinctPairs(course, mission);
         }
     }
 
-    private void executePairInquiry(String input, InputView inputView) {
-        if(input.equals("2")){
+    private void executePairInquiry(String input, InputView inputView) throws ErrorException {
+        if (Functions.isEquals(input, Functions.PAIR_INQUIRY)) {
             String[] matchingCriteria = parseInput(inputView);
 
             String course = Course.isCourse(matchingCriteria[0]);
@@ -92,41 +91,41 @@ public class PairMatchingController {
     }
 
     private void executePairInitialization(String input) {
-        if(input.equals("3")){
+        if (Functions.isEquals(input, Functions.INITIALIZE_PAIR)) {
             backendRecord.clear();
             frontendRecord.clear();
             outputView.displayReset();
         }
     }
 
-    private String[] parseInput(InputView inputView){
+    private String[] parseInput(InputView inputView) {
         String matchingCriteria = inputView.enteredChoices();
         return matchingCriteria.split(COMMA);
     }
 
     private void matchDistinctPairs(String course, Missions mission) {
-        int count = 0;
-        Pairs matchedPairs;
-
         MatchingRecord record = getRecordThroughCourse(course);
+        if (record.containPreviousMatching(mission)) {
+            rematching(course, mission, record);
+            return;
+        }
+        handleNewMatching(course, mission, record);
+    }
 
+    private void rematching(String course, Missions mission, MatchingRecord record) {
+        String input = getValidInput(inputView::enteredRematching, ShortAnswer::getValidAnswer);
+        if (ShortAnswer.isEquals(input, ShortAnswer.YES)) {
+            Pairs matchedPairs = matchingPairs(course);
+            record.replace(mission, matchedPairs);
+        }
+    }
 
+    private void handleNewMatching(String course, Missions mission, MatchingRecord record) {
+        int count = 0;
         while (true) {
-            if (record.containPreviousMatching(mission)) {
-                String input = getValidInput(inputView::enteredRematching, this::enteredRematchingValidator);
-                if ("네".equals(input)) {
-                    matchedPairs = matchingPairs(course);
-                    record.replace(mission, matchedPairs);
-                    break;
-                }
-                break;
-            }
-
-            matchedPairs = matchingPairs(course);
-
+            Pairs matchedPairs = matchingPairs(course);
             if (record.containTheSamePairInTheSameLevel(mission, matchedPairs)) {
-                count++;
-                overTryCount(count);
+                count = handleRetry(count);
                 continue;
             }
             record.add(mission, matchedPairs);
@@ -134,20 +133,19 @@ public class PairMatchingController {
         }
     }
 
-    private String enteredRematchingValidator(String input){
-        if(input.equals("네") || input.equals("아니오")){
-            return input;
-        }
-        throw new IllegalArgumentException("[ERROR] 네 또는 아니오만 입력 가능합니다.");
+    private int handleRetry(int count) {
+        count++;
+        overTryCount(count);
+        return count;
     }
 
-    private void overTryCount(int count) {
-        if (count >= 3) {
-            throw new IllegalStateException("[ERROR] 매칭 시도 횟수가 3회를 초과했습니다.");
+    private void overTryCount(int count) throws ErrorException {
+        if (count >= MAX_TRY_COUNT) {
+            throw new ErrorException("매칭 시도 횟수가 3회를 초과했습니다.");
         }
     }
 
-    private Pairs matchingPairs(String course){
+    private Pairs matchingPairs(String course) {
         Crew crew = getCrewThroughCourse(course);
         Pairs matchedPairs = crew.matchPairs();
         displayMatchedPairs(matchedPairs);
@@ -155,14 +153,14 @@ public class PairMatchingController {
     }
 
     private Crew getCrewThroughCourse(String course) {
-        if (Course.isBackend(course)) {
+        if (Course.isEquals(course, Course.BACKEND)) {
             return backend;
         }
         return frontend;
     }
 
     private MatchingRecord getRecordThroughCourse(String course) {
-        if (Course.isBackend(course)) {
+        if (Course.isEquals(course, Course.BACKEND)) {
             return backendRecord;
         }
         return frontendRecord;
@@ -172,8 +170,6 @@ public class PairMatchingController {
         outputView.displayPairMatchingResult();
         matchedPairs.display();
     }
-
-
 
     private <T> T getValidInput(Supplier<String> inputSupplier, Function<String, T> converter) {
         while (true) {
